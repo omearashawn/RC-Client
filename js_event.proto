@@ -1,0 +1,32 @@
+syntax = "proto2";
+
+package controller;
+
+message jsEvent{
+    required uint32 time=1;
+    required int32 value =2;
+    required uint32 type=3;
+    required uint32 number=4;
+}
+
+message Xbox{
+    optional Axes axes=1 ;
+    optional Buttons buttons = 2;
+}
+
+    message Axes{
+        optional sint32 l_x=1 [default = 0];
+        optional sint32 l_y=2 [default = 0];
+        optional sint32 r_x=3 [default = 0];
+        optional sint32 r_y=4 [default = 0];
+    }
+    message Buttons{
+        optional bool x =1 [default = false];
+        optional bool y =2 [default = false];
+        optional bool b =3 [default = false];
+        optional bool a =4 [default = false];
+
+        optional bool start = 5 [default = false];
+        optional bool rb =6 [default = false];
+        optional bool lb =7 [default = false];
+    }
