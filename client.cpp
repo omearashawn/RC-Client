@@ -32,9 +32,8 @@ int main() {
         perror("Couldn't open /dev/input/js0. Make sure controller is plugged in ");
     int status, valread, client_fd;
     struct sockaddr_in serv_addr;
-    char* hello = "Hello from client";
     char buffer[1024] = { 0 };
-    if ((client_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+    if ((client_fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
         printf("\n Socket creation error \n");
         return -1;
     }
@@ -51,10 +50,10 @@ int main() {
         return -1;
     }
 
-    if ((status = connect(client_fd, (struct sockaddr*)&serv_addr, sizeof(serv_addr))) < 0) {
-        printf("\nConnection Failed \n");
-        return -1;
-    }
+//    if ((status = connect(client_fd, (struct sockaddr*)&serv_addr, sizeof(serv_addr))) < 0) {
+//        printf("\nConnection Failed \n");
+//        return -1;
+//    }
 
 //    valread = read(client_fd, buffer,
 //                   1024 - 1); // subtract 1 for the null
@@ -164,11 +163,15 @@ int main() {
             }
         }
         controller.SerializeToString(&data);
-        std::cout << data.length() << std::endl;
-        send(client_fd, data);
-
-        read(client_fd, reply);
-        std::cout << reply << std::endl;
+//        std::cout << data.length() << std::endl;
+        const char* msg = "Hello";
+        std::cout << strlen(msg) << std::endl;
+        sendto(client_fd, (const char *)msg, strlen(msg), 0, (const struct sockaddr *)&serv_addr, sizeof(serv_addr));
+//        sendto(client_fd, &data, data.length(), 0, (const struct sockaddr *)&serv_addr, sizeof(serv_addr)); //udp send
+//        send(client_fd, data);
+//
+//        read(client_fd, reply);
+//        std::cout << reply << std::endl;
     }
     // closing the connected socket
     close(client_fd);
