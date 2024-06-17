@@ -83,8 +83,6 @@ int main() {
         buttons.set_start(false);
         buttons.set_lb(false);
         buttons.set_rb(false);
-
-        std::string data;
         std::string reply;
         while (read(js0, &event, sizeof(event)) > 0) {
             switch (event.type) {
@@ -162,11 +160,22 @@ int main() {
                     break;
             }
         }
-        controller.SerializeToString(&data);
-//        std::cout << data.length() << std::endl;
-        const char* msg = "Hello";
-        std::cout << strlen(msg) << std::endl;
-        sendto(client_fd, (const char *)msg, strlen(msg), 0, (const struct sockaddr *)&serv_addr, sizeof(serv_addr));
+        std::string data = controller.SerializeAsString();
+//        std::cout < data.length() << std::endl;
+//        const char* msg = "Hello";
+
+        int size = controller.ByteSizeLong();
+        char msg[size];
+        std::cout << controller.SerializeToArray((char *) msg, sizeof(msg)) << std::endl;
+        //TODO: try to deserialize locally first.
+        std::cout << std::endl;
+        std::cout << "Size of Controller: " << controller.ByteSizeLong() << std::endl;
+        int n = sendto(client_fd, msg, sizeof(msg), 0, (const struct sockaddr *)&serv_addr, sizeof(serv_addr));
+        std::cout << "Bytes sent: " << n << std::endl;
+        controller.Clear();
+        std::cout << "Result of Parse: " << controller.ParseFromArray(msg, n) << std::endl;
+        std::cout << "Size of Controller: " << controller.ByteSizeLong() << std::endl;
+        controller.PrintDebugString();
 //        sendto(client_fd, &data, data.length(), 0, (const struct sockaddr *)&serv_addr, sizeof(serv_addr)); //udp send
 //        send(client_fd, data);
 //
