@@ -10,27 +10,21 @@
 #include <fcntl.h>
 #include "linux/joystick.h"
 #include "js_event.pb.h"
-
+#include <boost/endian/buffers.hpp>
 
 #define PORT     8080
 #define MAXLINE 1024
-
-void serialize(js_event* event, char* data);
-void deserialize(char* data, js_event* event);
-void printEvent(js_event event);
-void send(int sock, const std::string& msg);
-void read(int new_socket, std::string &msg);
 float getPercent(__s16 value);
 float DEADZONE = 0.5;
+
+
 // Driver code
 //Currently has a back and forth communication for axis commands.
 int main() {
-//    sleep(8);
-//    controller::jsEvent eventMSG;
     int js0 = open("/dev/input/js0", O_RDONLY | O_NONBLOCK);
     if(js0 == -1)
         perror("Couldn't open /dev/input/js0. Make sure controller is plugged in ");
-    int status, valread, client_fd;
+    int status, valread, client_fd, server_fd;
     struct sockaddr_in serv_addr;
     char buffer[1024] = { 0 };
     if ((client_fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
@@ -50,39 +44,34 @@ int main() {
         return -1;
     }
 
-//    if ((status = connect(client_fd, (struct sockaddr*)&serv_addr, sizeof(serv_addr))) < 0) {
-//        printf("\nConnection Failed \n");
-//        return -1;
-//    }
-
-//    valread = read(client_fd, buffer,
-//                   1024 - 1); // subtract 1 for the null
-    // terminator at the end
-//    printf("%s\n", buffer);
     struct js_event event{};
-    controller::Xbox controller;
-    controller::Axes axes;
-    controller::Buttons buttons;
-    controller.set_allocated_axes(&axes);
-    controller.set_allocated_buttons(&buttons);
-    axes.set_l_x(0);
-    axes.set_l_y(0);
-    axes.set_r_x(0);
-    axes.set_r_y(0);
-    buttons.set_a(false);
-    buttons.set_b(false);
-    buttons.set_x(false);
-    buttons.set_y(false);
-    buttons.set_start(false);
-    buttons.set_lb(false);
-    buttons.set_rb(false);
+    struct message{
+        boost::endian::little_int32_buf_t left_x;
+        boost::endian::little_int32_buf_t left_y;
+        boost::endian::little_int32_buf_t right_x;
+        boost::endian::little_int32_buf_t right_y;
+
+        bool x = false;
+        bool y = false;
+        bool a = false;
+        bool b = false;
+        bool start = false;
+        bool lb = false;
+        bool rb = false;
+    }controller;
+    controller.left_x = 0;
+    controller.left_y = 0;
+    controller.right_x = 0;
+    controller.right_y = 0;
+    controller.a = false;
     while(1) {
-        buttons.set_b(false);
-        buttons.set_x(false);
-        buttons.set_y(false);
-        buttons.set_start(false);
-        buttons.set_lb(false);
-        buttons.set_rb(false);
+        controller.x = false;
+        controller.y = false;
+//        controller.a = false;
+        controller.b = false;
+        controller.start = false;
+        controller.lb = false;
+        controller.rb = false;
         std::string reply;
         while (read(js0, &event, sizeof(event)) > 0) {
             switch (event.type) {
@@ -90,28 +79,28 @@ int main() {
                     switch (event.number) {
                         case 0:
                             if (event.value) {
-                                buttons.set_a(true);
+                                controller.a = true;
                             }
                             else{
-                                buttons.set_a(false);
+                                controller.a = false;
                             }
                             break;
                         case 1:
                             if (event.value) {
-                                buttons.set_b(true);
+                                controller.b = true;
                             }
                             break;
                         case 2:
                             break;
                         case 4:
-                            buttons.set_lb(true);
+                            controller.lb = true;
                             break;
                         case 5:
-                            buttons.set_rb(true);
+                            controller.rb = true;
                             break;
                         case 7:
                             //Turn crank when button is held down
-                            buttons.set_start(true);
+                            controller.start = true;
                             break;
                         default:
                             std::cout << "Button " << (int) event.number << " "
@@ -122,123 +111,56 @@ int main() {
                 case JS_EVENT_AXIS:
                     switch (event.number) {
                         case 0:
-                            if (getPercent(event.value) >= DEADZONE || getPercent(event.value) <= -DEADZONE){
-                                axes.set_l_x(event.value);
-                            }
-                            else{
-                                axes.set_l_x(0);
+                            if (getPercent(event.value) >= DEADZONE || getPercent(event.value) <= -DEADZONE) {
+                                controller.left_x = event.value;
+                            } else {
+                                controller.left_x = 0;
                             }
                             break;
                         case 1:
-                            if (getPercent(event.value) >= DEADZONE || getPercent(event.value) <= -DEADZONE){
-                                axes.set_l_y(event.value);
-                            }
-                            else{
-                                axes.set_l_y(0);
+                            if (getPercent(event.value) >= DEADZONE || getPercent(event.value) <= -DEADZONE) {
+                                controller.left_y = event.value;
+                            } else {
+                                controller.left_y = 0;
                             }
                             break;
                         case 3:
-                            if (getPercent(event.value) >= DEADZONE || getPercent(event.value) <= -DEADZONE){
-                                axes.set_r_x(event.value);
-                            }
-                            else{
-                                axes.set_r_x(0);
+                            if (getPercent(event.value) >= DEADZONE || getPercent(event.value) <= -DEADZONE) {
+                                controller.right_x = event.value;
+                            } else {
+                                controller.right_x = 0;
                             }
                             break;
                         case 4:
-                            if (getPercent(event.value) >= DEADZONE || getPercent(event.value) <= -DEADZONE){
-                                axes.set_r_y(event.value);
-                            }
-                            else{
-                                axes.set_r_y(0);
+                            if (getPercent(event.value) >= DEADZONE || getPercent(event.value) <= -DEADZONE) {
+                                controller.right_y = event.value;
+                            } else {
+                                controller.right_y = 0;
                             }
                             break;
                         default:
                             break;
                     }
                 default:
+                    std::cout << "no controller" << std::endl;
                     break;
             }
         }
-        std::string data = controller.SerializeAsString();
-//        std::cout < data.length() << std::endl;
-//        const char* msg = "Hello";
 
-        int size = controller.ByteSizeLong();
-        char msg[size];
-        std::cout << controller.SerializeToArray((char *) msg, sizeof(msg)) << std::endl;
-        //TODO: try to deserialize locally first.
-        std::cout << std::endl;
-        std::cout << "Size of Controller: " << controller.ByteSizeLong() << std::endl;
-        int n = sendto(client_fd, msg, sizeof(msg), 0, (const struct sockaddr *)&serv_addr, sizeof(serv_addr));
+        int n = sendto(client_fd, &controller, sizeof(controller), 0, (const struct sockaddr *)&serv_addr, sizeof(serv_addr));
         std::cout << "Bytes sent: " << n << std::endl;
-        controller.Clear();
-        std::cout << "Result of Parse: " << controller.ParseFromArray(msg, n) << std::endl;
-        std::cout << "Size of Controller: " << controller.ByteSizeLong() << std::endl;
-        controller.PrintDebugString();
-//        sendto(client_fd, &data, data.length(), 0, (const struct sockaddr *)&serv_addr, sizeof(serv_addr)); //udp send
-//        send(client_fd, data);
-//
-//        read(client_fd, reply);
-//        std::cout << reply << std::endl;
+
+        n = recvfrom(client_fd, &buffer, sizeof(buffer), 0, (struct sockaddr *)&serv_addr,
+                 reinterpret_cast<socklen_t *>(sizeof(serv_addr)));
+        buffer[n] = '\0';
+        std::cout << buffer << std::endl;
     }
     // closing the connected socket
     close(client_fd);
     return 0;
 }
 
-void send(int sock, const std::string& msg) {
-    size_t msg_size = msg.length(); //get what the size of the message will be
-    char header[sizeof(size_t)]; //make enough space to hold the msg_size
-    memset(header, '\0', sizeof(size_t)); //fill that 64 bit space wih NULL
-    memcpy(header, (char*) &msg_size, sizeof(size_t)); //copy what the size of the message will be into that space
-    send(sock, header, sizeof(size_t), 0); //send how large the message will be
-    send(sock, msg.c_str(), msg_size, 0 ); //send the message data
-    std::cout << "msg sent to server...\n";
-}
-
-void read(int new_socket, std::string &msg) {
-    int valread;
-    char buffer_header[sizeof(size_t)] = {0};
-    valread = read( new_socket , buffer_header, sizeof(size_t)); //receive how large the message data will be
-
-    size_t msg_size;
-    memcpy(&msg_size, buffer_header, sizeof(size_t));
-
-    char* buffer_msg = (char*)malloc(msg_size*sizeof(char)); //allocate that space in memory
-    memset(buffer_msg, '\0', sizeof(char)*msg_size); //fill that space with NULL
-    int length = 0;
-    for(length = 0; msg_size != 0; length += valread) {
-        valread = read( new_socket , buffer_msg+length, msg_size); //fill that space with incoming data until it is full
-        msg_size -= valread;
-    }
-
-    msg = std::string(buffer_msg, length); //save that data to the desired string
-    free(buffer_msg); //free the memory from the buffer.
-}
 
 float getPercent(__s16 value) {
     return (value / 32767.0);
-}
-
-//basic serialzation works, now send a joystick command to a server and have it print out that command.
-void serialize(js_event *event, char* data){
-    int *q = (int *)data;
-    *q = event->time; q++;
-    *q = event->value; q++;
-    *q = event->type; q++;
-    *q = event->number; q++;
-}
-void deserialize(char* data, js_event *event){
-    int *q = (int*)data;
-    event->time = *q;    q++;
-    event->value = *q;   q++;
-    event->type = *q;     q++;
-    event->number =*q;
-}
-void printEvent(js_event event){
-    std::cout << event.time<< std::endl;
-    std::cout << event.value << std::endl;
-    std::cout << unsigned(event.type) << std::endl;
-    std::cout << unsigned(event.number) << std::endl;
 }
