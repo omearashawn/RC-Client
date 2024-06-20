@@ -108,6 +108,7 @@ int main() {
                                       << std::endl;
                             break;
                     }
+                    break;
                 case JS_EVENT_AXIS:
                     switch (event.number) {
                         case 0:
@@ -141,6 +142,7 @@ int main() {
                         default:
                             break;
                     }
+                    break;
                 default:
                     std::cout << "no controller" << std::endl;
                     break;
